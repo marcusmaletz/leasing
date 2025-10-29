@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leasing-Rechner (Gewerbe & Privat)</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const STORAGE_KEY = 'leasing-rechner-state-v3-best-of-both'; // Neuer Key
+        const loadPersistedState = () => {
+            if (typeof window === 'undefined') return null;
+            try {
+                const raw = window.localStorage.getItem(STORAGE_KEY);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                return (parsed && typeof parsed === 'object') ? parsed : null;
+            } catch (error) {
+                console.warn('Konnte gespeicherten Zustand nicht laden:', error);
+                return null;
+            }
+        };
+        const persistedState = loadPersistedState();
+
+        // +++ Lucide Icons (Original-Set + Icons aus Datei 2) +++
+        const Calculator = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="16" y1="18" x2="16" y2="18.01"/><line x1="12" y1="18" x2="12" y2="18.01"/><line x1="8" y1="18" x2="8" y2="18.01"/>
+            </svg>
+        );
+        const TrendingDown = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/>
+            </svg>
+        );
+        const Info = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+        );
+        const Plus = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+        );
+        const Trash2 = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+        );
+        // NEUE Icons aus Datei 2
+        const Briefcase = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+            </svg>
+        );
+        const User = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+        );
+        // +++ Ende Icons +++
+
+        function GewerbeLeasingRechner() {
+            // +++ NEUER STATE aus Datei 2 +++
+            const [leasingTyp, setLeasingTyp] = useState(persistedState?.leasingTyp ?? 'gewerblich');
+            
+            // +++ Original-States aus Datei 1 +++
+            const [steuersatz, setSteuersatz] = useState(persistedState?.steuersatz ?? 44);
+            const [privateNutzung, setPrivateNutzung] = useState(persistedState?.privateNutzung ?? true); // 1%-Regelung
+            const [kostenProJahr, setKostenProJahr] = useState(persistedState?.kostenProJahr ?? true); // true = pro Jahr, false = gesamte Laufzeit
+            const [tabelleOffen, setTabelleOffen] = useState(false); // Vergleichstabelle auf-/zugeklappt
+            const [inputValues, setInputValues] = useState({}); // temporäre Eingabewerte ohne Autoformatierung
+            const [angebote, setAngebote] = useState(() => {
+                if (persistedState?.angebote && Array.isArray(persistedState.angebote) && persistedState.angebote.length > 0) {
+                    return persistedState.angebote.map((angebot) => ({
+                        ...angebot,
+                        link: angebot.link ?? ''
+                    }));
+                }
+                // (Default-Angebot bleibt gleich)
+                return [
+                    {
+                        id: 1,
+                        name: 'Angebot 1',
+                        link: '',
+                        bruttolistenpreis: 60000,
+                        leasingrate: 399,
+                        anzahlung: 0,
+                        ueberfuehrung: 1000,
+                        laufzeit: 36,
+                        kmProJahr: 15000,
+                        mehrKmKosten: 0.15,
+                        minderKmErstattung: 0.08,
+                        fahrzeugtyp: 'verbrenner', // 'elektro', 'hybrid', 'verbrenner'
+                        hubraum: 1969, // ccm
+                        co2: 179, // g/km
+                        wartungInkludiert: false // Wartung und Verschleiß im Leasingpreis enthalten
+                    }
+                ];
+            });
+
+            // +++ HILFSFUNKTIONEN FÜR FORMATIERUNG (aus Datei 1) +++
+            const formatNumber = (num) => {
+                if (num === null || num === undefined || isNaN(num)) {
+                    return '';
+                }
+                return num.toLocaleString('de-DE', { maximumFractionDigits: 0, minimumFractionDigits: 0 });
+            };
+
+            const parseNumber = (str) => {
+                if (!str) return 0;
+                const cleaned = str.replace(/\./g, '');
+                const num = parseInt(cleaned, 10);
+                return isNaN(num) ? 0 : num;
+            };
+
+            const formatDecimal = (num) => {
+                if (num === null || num === undefined || isNaN(num)) {
+                    return '';
+                }
+                return num.toLocaleString('de-DE', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+            };
+
+            const parseDecimal = (str) => {
+                if (!str) return 0;
+                const cleaned = str.replace(/\./g, '').replace(/,/g, '.');
+                const num = parseFloat(cleaned);
+                return isNaN(num) ? 0 : num;
+            };
+            // +++ ENDE HILFSFUNKTIONEN +++
+
+            // +++ ANGEBOTS-VERWALTUNG (aus Datei 1) +++
+            const addAngebot = () => {
+                const newId = Math.max(...angebote.map(a => a.id), 0) + 1;
+                setAngebote([...angebote, {
+                    id: newId,
+                    name: `Angebot ${newId}`,
+                    link: '',
+                    bruttolistenpreis: 60000,
+                    leasingrate: 450,
+                    anzahlung: 0,
+                    ueberfuehrung: 0,
+                    laufzeit: 36,
+                    kmProJahr: 15000,
+                    mehrKmKosten: 0.15,
+                    minderKmErstattung: 0.08,
+                    fahrzeugtyp: 'verbrenner',
+                    hubraum: 1600,
+                    co2: 120,
+                    wartungInkludiert: false
+                }]);
+            };
+
+            const removeAngebot = (id) => {
+                if (angebote.length > 1) {
+                    setAngebote(angebote.filter(a => a.id !== id));
+                }
+            };
+
+            const updateAngebot = (id, field, value) => {
+                setAngebote(angebote.map(a => 
+                    a.id === id ? { ...a, [field]: value } : a
+                ));
+            };
+
+            // +++ ANGEPASSTER EFFECT FÜR SPEICHERUNG (mit leasingTyp) +++
+            useEffect(() => {
+                if (typeof window === 'undefined') return;
+                try {
+                    const stateToPersist = {
+                        leasingTyp, // NEU
+                        steuersatz,
+                        privateNutzung,
+                        kostenProJahr,
+                        angebote
+                    };
+                    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToPersist));
+                } catch (error) {
+                    console.warn('Konnte Zustand nicht speichern:', error);
+                }
+            }, [leasingTyp, steuersatz, privateNutzung, kostenProJahr, angebote]); // leasingTyp hinzugefügt
+
+            // +++ INPUT HANDLER (aus Datei 1) +++
+            const decimalKey = (id, field) => `${id}-${field}`;
+            const handleDecimalFocus = (id, field, currentValue) => () => {
+                const key = decimalKey(id, field);
+                setInputValues(prev => {
+                    if (Object.prototype.hasOwnProperty.call(prev, key)) {
+                        return prev;
+                    }
+                    if (currentValue === null || currentValue === undefined || isNaN(currentValue)) {
+                        return { ...prev, [key]: '' };
+                    }
+                    const textValue = currentValue.toString().replace('.', ',');
+                    return { ...prev, [key]: textValue };
+                });
+            };
+            const handleDecimalChange = (id, field) => (e) => {
+                const rawValue = e.target.value;
+                if (!/^[0-9.,]*$/.test(rawValue)) {
+                    return;
+                }
+                const key = decimalKey(id, field);
+                setInputValues(prev => ({ ...prev, [key]: rawValue }));
+                updateAngebot(id, field, parseDecimal(rawValue));
+            };
+            const handleDecimalBlur = (id, field) => () => {
+                const key = decimalKey(id, field);
+                setInputValues(prev => {
+                    const updated = { ...prev };
+                    delete updated[key];
+                    return updated;
+                });
+            };
+            const getDecimalDisplayValue = (id, field, numericValue) => {
+                const key = decimalKey(id, field);
+                if (Object.prototype.hasOwnProperty.call(inputValues, key)) {
+                    return inputValues[key];
+                }
+                return formatDecimal(numericValue);
+            };
+
+            // +++ KFZ-STEUER BERECHNUNG (aus Datei 1) +++
+            // (Diese Funktion ist für beide Modi gültig)
+            const berechneKfzSteuer = (angebot) => {
+                if (angebot.fahrzeugtyp === 'elektro') {
+                    return 0;
+                }
+
+                // Sockelbetrag basierend auf Hubraum
+                const hubraumAnteil = Math.ceil(angebot.hubraum / 100);
+                let sockelbetrag = 0;
+                
+                if (angebot.fahrzeugtyp === 'verbrenner') {
+                    // Annahme: Benziner (wie in Datei 1)
+                    sockelbetrag = hubraumAnteil * 2;
+                } else if (angebot.fahrzeugtyp === 'hybrid') {
+                    sockelbetrag = hubraumAnteil * 2;
+                }
+
+                // CO2-Zuschlag (ab 95 g/km)
+                let co2Zuschlag = 0;
+                if (angebot.co2 > 95) {
+                    const ueber95 = angebot.co2 - 95;
+                    const stufen = [
+                        { bis: 20, preis: 2.00 }, { bis: 20, preis: 2.20 }, { bis: 20, preis: 2.50 },
+                        { bis: 20, preis: 2.90 }, { bis: 20, preis: 3.40 }, { bis: Infinity, preis: 4.00 }
+                    ];
+                    let verbleibend = ueber95;
+                    for (const stufe of stufen) {
+                        if (verbleibend <= 0) break;
+                        const gramm = Math.min(verbleibend, stufe.bis);
+                        co2Zuschlag += gramm * stufe.preis;
+                        verbleibend -= gramm;
+                    }
+                }
+                return Math.floor(sockelbetrag + co2Zuschlag);
+            };
+
+            // +++ NEUE, ANGEPASSTE KOSTENBERECHNUNG (Kombiniert aus Datei 1 & 2) +++
+            const berechneKosten = (angebot) => {
+                // --- 1. Gemeinsame Berechnungen (für beide Modi gültig) ---
+                const kfzSteuerJahr = berechneKfzSteuer(angebot);
+                const kfzSteuerGesamt = kfzSteuerJahr * (angebot.laufzeit / 12);
+                
+                const bruttoGesamtLeasingraten = angebot.leasingrate * angebot.laufzeit;
+                const bruttoGesamt = bruttoGesamtLeasingraten + angebot.anzahlung + angebot.ueberfuehrung;
+
+                let wartungsKostenProKm = 0;
+                let wartungsKostenGesamt = 0;
+                
+                if (!angebot.wartungInkludiert) {
+                    switch(angebot.fahrzeugtyp) {
+                        case 'elektro': wartungsKostenProKm = 0.03; break;
+                        case 'hybrid': wartungsKostenProKm = 0.04; break;
+                        case 'verbrenner': default: wartungsKostenProKm = 0.05; break;
+                    }
+                    const gesamtKilometer = angebot.kmProJahr * (angebot.laufzeit / 12);
+                    wartungsKostenGesamt = wartungsKostenProKm * gesamtKilometer;
+                }
+                
+                const gesamtKilometer = angebot.kmProJahr * (angebot.laufzeit / 12);
+
+                // --- 2. Modus-spezifische Berechnung ---
+
+                if (leasingTyp === 'gewerblich') {
+                    // --- GEWERBLICH: Volle Logik aus Datei 1 ---
+                    const nettoRate = angebot.leasingrate / 1.19;
+                    const nettoAnzahlung = angebot.anzahlung / 1.19;
+                    const nettoUeberfuehrung = angebot.ueberfuehrung / 1.19;
+                    const nettoGesamt = (bruttoGesamtLeasingraten + angebot.anzahlung + angebot.ueberfuehrung) / 1.19;
+
+                    const vorsteuerRaten = (angebot.leasingrate - nettoRate) * angebot.laufzeit;
+                    const vorsteuerAnzahlung = angebot.anzahlung - nettoAnzahlung;
+                    const vorsteuerUeberfuehrung = angebot.ueberfuehrung - nettoUeberfuehrung;
+                    const vorsteuerGesamt = vorsteuerRaten + vorsteuerAnzahlung + vorsteuerUeberfuehrung;
+
+                    const betriebsausgabenGesamt = nettoGesamt + kfzSteuerGesamt + wartungsKostenGesamt;
+                    const steuerersparnisRaten = betriebsausgabenGesamt * (steuersatz / 100);
+
+                    let prozentsatzGeldwerterVorteil = 0;
+                    let hinweisText = '';
+                    
+                    if (privateNutzung) {
+                        switch(angebot.fahrzeugtyp) {
+                            case 'elektro':
+                                if (angebot.bruttolistenpreis <= 100000) {
+                                    prozentsatzGeldwerterVorteil = 0.0025;
+                                    hinweisText = '0,25% (E-Auto)';
+                                } else {
+                                    prozentsatzGeldwerterVorteil = 0.005;
+                                    hinweisText = '0,5% (E-Auto > 100k)';
+                                }
+                                break;
+                            case 'hybrid':
+                                prozentsatzGeldwerterVorteil = 0.005;
+                                hinweisText = '0,5% Hybrid';
+                                break;
+                            case 'verbrenner': default:
+                                prozentsatzGeldwerterVorteil = 0.01;
+                                hinweisText = '1% (Verbrenner)';
+                                break;
+                        }
+                    }
+
+                    let geldwerterVorteilGesamt = 0;
+                    let zusaetzlicheSteuerLast = 0;
+                    
+                    if (privateNutzung && prozentsatzGeldwerterVorteil > 0) {
+                        const geldwerterVorteilMonat = angebot.bruttolistenpreis * prozentsatzGeldwerterVorteil;
+                        geldwerterVorteilGesamt = geldwerterVorteilMonat * angebot.laufzeit;
+                        zusaetzlicheSteuerLast = geldwerterVorteilGesamt * (steuersatz / 100);
+                    }
+
+                    const effektiveKosten = bruttoGesamt + kfzSteuerGesamt + wartungsKostenGesamt - vorsteuerGesamt - steuerersparnisRaten + zusaetzlicheSteuerLast;
+                    const effektivMonatlich = effektiveKosten / angebot.laufzeit;
+                    const kostenProKm = effektiveKosten / gesamtKilometer;
+
+                    // Rückgabe-Objekt (kompatibel mit Datei 1)
+                    return {
+                        bruttoGesamt, nettoGesamt, kfzSteuerJahr, kfzSteuerGesamt,
+                        wartungsKostenGesamt, wartungsKostenProKm, vorsteuerGesamt,
+                        steuerersparnisRaten, geldwerterVorteilGesamt, zusaetzlicheSteuerLast,
+                        prozentsatzGeldwerterVorteil, hinweisText, effektiveKosten,
+                        effektivMonatlich, kostenProKm, gesamtKilometer
+                    };
+
+                } else {
+                    // --- PRIVAT: Vereinfachte Logik aus Datei 2 ---
+                    // Gesamtkosten = Brutto-Leasing + Steuer + Wartung
+                    const effektiveKosten = bruttoGesamt + kfzSteuerGesamt + wartungsKostenGesamt;
+                    const effektivMonatlich = effektiveKosten / angebot.laufzeit;
+                    const kostenProKm = effektiveKosten / gesamtKilometer;
+
+                    // Rückgabe-Objekt (muss dieselbe "Form" haben wie das gewerbliche,
+                    // damit die UI nicht bricht. Nicht genutzte Werte sind 0.)
+                    return {
+                        bruttoGesamt,
+                        nettoGesamt: 0,
+                        kfzSteuerJahr,
+                        kfzSteuerGesamt,
+                        wartungsKostenGesamt,
+                        wartungsKostenProKm,
+                        vorsteuerGesamt: 0,
+                        steuerersparnisRaten: 0,
+                        geldwerterVorteilGesamt: 0,
+                        zusaetzlicheSteuerLast: 0,
+                        prozentsatzGeldwerterVorteil: 0,
+                        hinweisText: 'Privatleasing',
+                        effektiveKosten, // Hier als "Gesamtkosten" verwendet
+                        effektivMonatlich,
+                        kostenProKm,
+                        gesamtKilometer
+                    };
+                }
+            };
+            
+            // +++ GET BEST ANGEBOT (aus Datei 1) +++
+            // (Funktioniert für beide Modi, da "effektivMonatlich" immer berechnet wird)
+            const getBestAngebot = () => {
+                if (angebote.length === 0) return null;
+                return angebote.reduce((best, current) => {
+                    const bestKosten = berechneKosten(best);
+                    const currentKosten = berechneKosten(current);
+                    return currentKosten.effektivMonatlich < bestKosten.effektivMonatlich ? current : best;
+                });
+            };
+
+            // +++ NEUE, ANGEPASSTE ANGEBOTS-ANALYSE (Kombiniert) +++
+            const analysiereAngebot = (angebot) => {
+                const kosten = berechneKosten(angebot);
+                const empfehlungen = [];
+                const warnungen = [];
+                const optimaltipps = [];
+                let score = 100;
+
+                // --- 1. Analyse-Punkte, die für BEIDE Modi gelten ---
+                
+                // Analyse Einmalkosten
+                const einmalkosten = angebot.anzahlung + angebot.ueberfuehrung;
+                if (angebot.anzahlung > 0) {
+                    warnungen.push({
+                        titel: 'Anzahlung',
+                        text: `Sie zahlen ${angebot.anzahlung.toLocaleString('de-DE')}€ Anzahlung. Dieses Geld bindet Kapital, das Sie anderweitig nutzen könnten.`,
+                        spartipp: `Suchen Sie nach 0€-Anzahlung-Angeboten, um die Liquidität zu schonen.`
+                    });
+                    score -= Math.min(15, (einmalkosten / angebot.bruttolistenpreis) * 30);
+                } else {
+                    optimaltipps.push('✅ Minimale Einmalkosten = maximale Liquidität');
+                }
+                
+                // Analyse Laufzeit
+                if (angebot.laufzeit < 24) {
+                    warnungen.push({
+                        titel: 'Sehr kurze Laufzeit', text: 'Kurze Laufzeiten führen oft zu höheren monatlichen Raten.',
+                        spartipp: 'Prüfen Sie, ob 36-48 Monate günstiger sind.'
+                    });
+                    score -= 10;
+                } else if (angebot.laufzeit > 48) {
+                    warnungen.push({
+                        titel: 'Sehr lange Laufzeit', text: 'Bei langen Laufzeiten steigt das Risiko von Reparaturen außerhalb der Garantie.',
+                        spartipp: 'Optimal sind meist 36-48 Monate.'
+                    });
+                    score -= 5;
+                } else {
+                    optimaltipps.push('✅ Optimale Laufzeit (36-48 Monate)');
+                }
+                
+                // Analyse Wartung
+                if (!angebot.wartungInkludiert) {
+                    const wartungsKostenJahr = kosten.wartungsKostenGesamt / (angebot.laufzeit / 12);
+                    warnungen.push({
+                        titel: 'Wartungskosten nicht inkludiert',
+                        text: `Zusätzliche Kosten: ca. ${wartungsKostenJahr.toLocaleString('de-DE', {maximumFractionDigits: 0})}€/Jahr für Wartung & Verschleiß`,
+                        spartipp: 'Full-Service-Leasing bietet bessere Kostenkontrolle.'
+                    });
+                    score -= 5;
+                } else {
+                    optimaltipps.push('✅ Wartung & Verschleiß inkludiert = planbare Kosten');
+                }
+                
+                // Analyse KFZ-Steuer
+                if (angebot.fahrzeugtyp === 'elektro') {
+                    optimaltipps.push('✅ KFZ-Steuer: 0€ (E-Auto bis 2030 steuerfrei)');
+                }
+
+                // --- 2. Analyse-Punkte, die NUR für GEWERBE gelten ---
+
+                if (leasingTyp === 'gewerblich') {
+                    
+                    // (Tipps aus Original-Datei 1)
+                    if (angebot.ueberfuehrung > 500) {
+                        warnungen.push({
+                            titel: 'Hohe Überführungskosten', text: `${angebot.ueberfuehrung.toLocaleString('de-DE')}€ Überführung ist relativ hoch`,
+                            spartipp: 'Vergleichen Sie Angebote - oft sind diese verhandelbar'
+                        });
+                        score -= 5;
+                    }
+
+                    if (privateNutzung) {
+                        if (angebot.fahrzeugtyp === 'verbrenner' && angebot.bruttolistenpreis > 40000) {
+                            empfehlungen.push({
+                                titel: '💡 Elektro wäre günstiger!',
+                                text: `Bei diesem Preis würde ein E-Auto nur 0,25% Versteuerung bedeuten.`,
+                                spartipp: `Ersparnis: ca. ${(angebot.bruttolistenpreis * 0.0075 * angebot.laufzeit * (steuersatz / 100)).toLocaleString('de-DE', {maximumFractionDigits: 0})}€ über die Laufzeit`
+                            });
+                            score -= 20;
+                        }
+                        
+                        if (angebot.fahrzeugtyp === 'elektro' && angebot.bruttolistenpreis > 100000) {
+                            warnungen.push({
+                                titel: 'Preisobergrenze überschritten', text: 'Über 100.000€ gilt nur noch 0,5% statt 0,25%',
+                                spartipp: `Ein Modell unter 100.000€ würde ${((angebot.bruttolistenpreis * 0.0025 * angebot.laufzeit * (steuersatz / 100))).toLocaleString('de-DE', {maximumFractionDigits: 0})}€ sparen`
+                            });
+                            score -= 15;
+                        }
+                    }
+
+                    if (privateNutzung && kosten.zusaetzlicheSteuerLast > kosten.nettoGesamt * 0.3) {
+                        empfehlungen.push({
+                            titel: '⚠️ Hohe Steuerlast durch Privatnutzung', text: 'Die zusätzliche Steuerlast durch private Nutzung ist sehr hoch',
+                            spartipp: 'Erwägen Sie: 1) Fahrtenbuchmethode oder 2) Separates Privatfahrzeug'
+                        });
+                        score -= 15;
+                    }
+                    
+                    if (!privateNutzung) {
+                        optimaltipps.push('✅ Rein geschäftliche Nutzung = keine zusätzliche Steuerlast');
+                    }
+                    
+                    if (angebot.fahrzeugtyp === 'elektro' && angebot.bruttolistenpreis <= 100000) {
+                        optimaltipps.push('✅ Optimale Wahl: E-Auto unter 100.000€ = nur 0,25% Versteuerung');
+                    }
+                }
+
+                // --- 3. Endgültige Bewertung ---
+                return {
+                    score: Math.max(0, Math.min(100, score)),
+                    empfehlungen,
+                    warnungen,
+                    optimaltipps,
+                    gesamtbewertung: score >= 80 ? 'Sehr gut optimiert' : 
+                                    score >= 60 ? 'Gut, aber Optimierungspotenzial' : 
+                                    'Deutliches Optimierungspotenzial'
+                };
+            };
+            
+            const bestAngebot = getBestAngebot();
+            const kostenText = leasingTyp === 'privat' ? 'Gesamtkosten' : 'Effektive Kosten';
+
+            return (
+                <div className="min-h-screen bg-gray-50 p-6">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                            
+                            {/* +++ NEUER HEADER (Kombiniert) +++ */}
+                            <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 text-gray-700">
+                                        <Calculator />
+                                    </div>
+                                    <h1 className="text-3xl font-bold text-gray-800">Leasing-Rechner</h1>
+                                </div>
+                                
+                                <div className="flex items-center gap-4 bg-gray-100 rounded-lg p-2">
+                                    <button
+                                        onClick={() => setLeasingTyp('gewerblich')}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-all ${
+                                            leasingTyp === 'gewerblich'
+                                                ? 'bg-blue-600 text-white shadow-md'
+                                                : 'bg-transparent text-gray-600 hover:bg-gray-200'
+                                        }`}
+                                    >
+                                        <Briefcase />
+                                        Gewerblich
+                                    </button>
+                                    <button
+                                        onClick={() => setLeasingTyp('privat')}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-all ${
+                                            leasingTyp === 'privat'
+                                                ? 'bg-green-600 text-white shadow-md'
+                                                : 'bg-transparent text-gray-600 hover:bg-gray-200'
+                                        }`}
+                                    >
+                                        <User />
+                                        Privat
+                                    </button>
+                                </div>
+                            </div>
+
+                            {leasingTyp === 'gewerblich' ? (
+                                <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded mb-6">
+                                    <p className="text-sm text-blue-900">
+                                        <strong>Gewerbeleasing:</strong> Berechnung inklusive Vorsteuerabzug, Betriebsausgaben und geldwertem Vorteil.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded mb-6">
+                                    <p className="text-sm text-green-900">
+                                        <strong>Privatleasing:</strong> Einfache Berechnung der reinen Bruttokosten ohne steuerliche Vorteile.
+                                    </p>
+                                </div>
+                            )}
+                            {/* +++ ENDE NEUER HEADER +++ */}
+
+                            {/* +++ NEUE EINSTELLUNGS-STRUKTUR +++ */}
+                            
+                            {/* 1. Box: Kosten-Darstellung (Immer sichtbar) */}
+                            <div className="bg-gray-100 rounded-lg p-4 mb-4">
+                                <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                    <div className="w-5 h-5 text-gray-700">
+                                        <Info />
+                                    </div>
+                                    Allgemeine Einstellungen
+                                </h3>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Kostendarstellung
+                                    </label>
+                                    <div className="flex items-center gap-3 mt-2">
+                                        <label className="flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={kostenProJahr}
+                                                onChange={(e) => setKostenProJahr(e.target.checked)}
+                                                className="w-5 h-5 text-gray-600 rounded focus:ring-2 focus:ring-gray-500"
+                                            />
+                                            <span className="ml-2 text-sm text-gray-700">Kosten pro Jahr</span>
+                                        </label>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        {kostenProJahr ? 'Anzeige: Jährliche Kosten' : `Anzeige: ${kostenText} über Laufzeit`}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* 2. Box: Steuer-Parameter (Nur für Gewerbe) */}
+                            {leasingTyp === 'gewerblich' && (
+                                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                                    <h3 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                                        <div className="w-5 h-5 text-blue-700">
+                                            <Briefcase />
+                                        </div>
+                                        Steuerparameter (Gewerbe)
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Ihr Steuersatz (Einkommen-/Körperschaftsteuer + SolZ)
+                                            </label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="50"
+                                                    step="1"
+                                                    value={steuersatz}
+                                                    onChange={(e) => setSteuersatz(Number(e.target.value))}
+                                                    className="flex-1"
+                                                />
+                                                <span className="font-bold text-gray-700 w-16 text-right">{steuersatz}%</span>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                Typisch: 30-45% (je nach Rechtsform und Gewinn)
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Private Nutzung des Fahrzeugs
+                                            </label>
+                                            <div className="flex items-center gap-3 mt-2">
+                                                <label className="flex items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={privateNutzung}
+                                                        onChange={(e) => setPrivateNutzung(e.target.checked)}
+                                                        className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                    <span className="ml-2 text-sm text-gray-700">1%-Regelung anwenden</span>
+                                                </label>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                1% des Bruttolistenpreises/Monat als geldwerter Vorteil
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            {/* +++ ENDE NEUE EINSTELLUNGEN +++ */}
+                        </div>
+
+                        {/* Vergleichs-Dashboard (Original aus Datei 1, mit dynamischem Text) */}
+                        {angebote.length > 1 && (() => {
+                            const sortierteAngebote = [...angebote]
+                                .map(a => ({ angebot: a, kosten: berechneKosten(a) }))
+                                .sort((a, b) => a.kosten.effektivMonatlich - b.kosten.effektivMonatlich); 
+                            
+                            const bestesAngebotObj = getBestAngebot();
+                            const maxAngezeigteKosten = Math.max(...sortierteAngebote.map(a => {
+                                const jahre = a.angebot.laufzeit / 12;
+                                return kostenProJahr ? (a.kosten.effektiveKosten / jahre) : a.kosten.effektiveKosten;
+                            }));
+                            
+                            return (
+                                <div className="bg-white rounded-lg shadow-lg p-4 mb-6"> 
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <span className="text-3xl">🏆</span>
+                                        <h2 className="text-2xl font-bold text-gray-800">Ihr Vergleich auf einen Blick</h2>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4"> 
+                                        {sortierteAngebote.map((item, index) => {
+                                            const jahre = item.angebot.laufzeit / 12;
+                                            const anzeigeKosten = kostenProJahr ? (item.kosten.effektiveKosten / jahre) : item.kosten.effektiveKosten;
+                                            const istBestes = item.angebot.id === bestesAngebotObj.id;
+                                            let vergleichsText = '';
+                                            
+                                            if (!istBestes) {
+                                                const bestKosten = berechneKosten(bestesAngebotObj);
+                                                const bestAnzeigeKosten = kostenProJahr ? (bestKosten.effektiveKosten / (bestesAngebotObj.laufzeit / 12)) : bestKosten.effektiveKosten;
+                                                const differenz = anzeigeKosten - bestAnzeigeKosten;
+                                                vergleichsText = `+${differenz.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} € teurer`;
+                                            }
+
+                                            return (
+                                                <div 
+                                                    key={item.angebot.id}
+                                                    className={`relative bg-gray-50 rounded-lg p-3 border border-gray-200 ${ 
+                                                        istBestes ? 'ring-4 ring-green-500' : ''
+                                                    }`}
+                                                >
+                                                    <div className="absolute -top-3 -right-3 text-4xl">
+                                                        {index === 0 && '🥇'}
+                                                        {index === 1 && '🥈'}
+                                                        {index === 2 && '🥉'}
+                                                    </div>
+                                                    
+                                                    <div className="text-center">
+                                                        <h3 className="font-bold text-lg text-gray-800 mb-2">
+                                                            {/* (Link-Logik bleibt) */}
+                                                            {item.angebot.link ? (
+                                                                <a href={item.angebot.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" title={item.angebot.name || item.angebot.link}>
+                                                                    {item.angebot.name || 'Angebot anzeigen'}
+                                                                </a>
+                                                            ) : (
+                                                                item.angebot.name || 'Angebot'
+                                                            )}
+                                                        </h3>
+                                                        <div className="text-2xl font-bold text-gray-900 mb-1"> 
+                                                            {anzeigeKosten.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €
+                                                        </div>
+                                                        <div className="text-xs text-gray-500 mb-3">
+                                                            {kostenText} ({kostenProJahr ? 'pro Jahr' : 'Gesamt'})
+                                                        </div>
+                                                        
+                                                        {istBestes ? (
+                                                            <div className="bg-green-500 text-white px-3 py-2 rounded-full text-sm font-bold">
+                                                                ✓ Günstigste Rate
+                                                            </div>
+                                                        ) : (
+                                                            <div className="bg-red-100 text-red-700 px-3 py-2 rounded-lg text-sm font-semibold">
+                                                                {vergleichsText}
+                                                            </div>
+                                                        )}
+                                                        
+                                                        <div className="text-xs text-gray-500 mt-2">
+                                                            {item.kosten.effektivMonatlich.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € / Monat
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    
+                                    <div className="bg-white rounded-lg p-3 border-t border-gray-200 mt-4"> 
+                                        <h4 className="font-semibold text-gray-700 mb-3">
+                                            Kostenvergleich ({kostenText} {kostenProJahr ? 'pro Jahr' : 'Gesamt'})
+                                        </h4>
+                                        <div className="space-y-3">
+                                            {sortierteAngebote.map((item, index) => {
+                                                const jahre = item.angebot.laufzeit / 12;
+                                                const anzeigeKosten = kostenProJahr ? (item.kosten.effektiveKosten / jahre) : item.kosten.effektiveKosten;
+                                                const prozent = (anzeigeKosten / maxAngezeigteKosten) * 100;
+                                                return (
+                                                    <div key={item.angebot.id} className="flex items-center gap-3">
+                                                        <div className="w-32 text-sm font-medium text-gray-700 truncate">
+                                                            {item.angebot.link ? (
+                                                                <a href={item.angebot.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" title={item.angebot.name || item.angebot.link}>
+                                                                    {item.angebot.name || 'Angebot öffnen'}
+                                                                </a>
+                                                            ) : (
+                                                                item.angebot.name || 'Angebot'
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 bg-gray-200 rounded-full h-6 overflow-hidden relative"> 
+                                                            <div 
+                                                                className={`h-full ${
+                                                                    index === 0 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                                                                    index === 1 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
+                                                                    'bg-gradient-to-r from-orange-400 to-orange-500'
+                                                                } transition-all duration-500 flex items-center justify-end pr-2`}
+                                                                style={{ width: `${prozent}%` }}
+                                                            >
+                                                                <span className="text-white text-xs font-bold">
+                                                                    {anzeigeKosten.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Angebots-Karten (Original aus Datei 1) */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
+                            {angebote.map((angebot) => {
+                                const kosten = berechneKosten(angebot);
+                                const analyse = analysiereAngebot(angebot);
+                                const isBest = bestAngebot?.id === angebot.id && angebote.length > 1;
+
+                                // (Die gesamte Karten-Logik von Datei 1 bleibt identisch,
+                                // bis auf die Kostenübersicht am Ende)
+                                
+                                return (
+                                    <div
+                                        key={angebot.id}
+                                        className={`bg-white rounded-lg shadow-lg overflow-hidden ${
+                                            isBest ? 'ring-4 ring-green-500' : 'ring-1 ring-gray-200'
+                                        }`}
+                                    >
+                                        {/* (Header der Karte) */}
+                                        <div className={`p-4 ${
+                                            isBest 
+                                                ? 'bg-green-50 border-b border-green-200' 
+                                                : 'bg-white border-b border-gray-200'
+                                        }`}>
+                                            <div className="flex items-center justify-between mb-2 gap-3">
+                                                <div className="flex-1 flex items-center gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={angebot.name}
+                                                        onChange={(e) => updateAngebot(angebot.id, 'name', e.target.value)}
+                                                        className={`flex-1 bg-transparent font-bold text-xl border-b outline-none ${
+                                                            isBest 
+                                                                ? 'text-green-800 border-green-300' 
+                                                                : 'text-gray-800 border-gray-300'
+                                                        }`}
+                                                    />
+                                                </div>
+                                                {angebote.length > 1 && (
+                                                    <button
+                                                        onClick={() => removeAngebot(angebot.id)}
+                                                        className={`p-1 rounded ${
+                                                            isBest 
+                                                                ? 'text-green-700 hover:bg-green-200' 
+                                                                : 'text-gray-500 hover:bg-gray-100 hover:text-red-600'
+                                                        }`}
+                                                    >
+                                                        <div className="w-5 h-5">
+                                                            <Trash2 />
+                                                        </div>
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {isBest && (
+                                                <div className="flex items-center gap-2 text-green-700 text-sm font-semibold">
+                                                    <div className="w-4 h-4">
+                                                        <TrendingDown />
+                                                    </div>
+                                                    Günstigste Monatsrate!
+                                                </div>
+                                            )}
+                                            {!isBest && angebote.length > 1 && (
+                                                /* (Differenz-Badge Logik) */
+                                                (() => {
+                                                    const bestKosten = berechneKosten(bestAngebot);
+                                                    const monatlicheDifferenz = kosten.effektivMonatlich - bestKosten.effektivMonatlich;
+                                                    return (
+                                                        <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded mt-2">
+                                                            <div className="flex items-start gap-2">
+                                                                <span className="text-red-600 text-lg">⚠️</span>
+                                                                <div>
+                                                                    <p className="text-sm font-bold text-red-800">
+                                                                        +{monatlicheDifferenz.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € / Monat teurer
+                                                                    </p>
+                                                                    <p className="text-xs text-red-600 mt-1">
+                                                                        als das Angebot mit der günstigsten Rate
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()
+                                            )}
+                                        </div>
+                                        
+                                        {/* (Warum das Beste? Logik) */}
+                                        {isBest && angebote.length > 1 && (
+                                            /* (...) */
+                                            (() => {
+                                                const gruende = [];
+                                                const andereAngebote = angebote.filter(a => a.id !== angebot.id);
+                                                const maxAndereMonatskosten = Math.max(...andereAngebote.map(a => berechneKosten(a).effektivMonatlich));
+                                                const monatlicheErsparnis = maxAndereMonatskosten - kosten.effektivMonatlich;
+                                                
+                                                if (angebot.leasingrate <= Math.min(...andereAngebote.map(a => a.leasingrate))) {
+                                                    gruende.push('💰 Niedrigste Brutto-Rate');
+                                                }
+                                                if (leasingTyp === 'gewerblich' && angebot.fahrzeugtyp === 'elektro' && andereAngebote.some(a => a.fahrzeugtyp !== 'elektro')) {
+                                                    gruende.push('⚡ Geringere Versteuerung (E-Auto)');
+                                                }
+                                                if (angebot.anzahlung === 0 && andereAngebote.some(a => a.anzahlung > 0)) {
+                                                    gruende.push('🎯 Keine Anzahlung');
+                                                }
+                                                if (kosten.kfzSteuerJahr <= Math.min(...andereAngebote.map(a => berechneKosten(a).kfzSteuerJahr))) {
+                                                    gruende.push('🚗 Niedrigste KFZ-Steuer');
+                                                }
+                                                if (gruende.length === 0) {
+                                                    gruende.push('💎 Bestes Verhältnis von Kosten und Laufzeit');
+                                                }
+                                                
+                                                return (
+                                                    <div className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-t-2 border-green-300">
+                                                        <h4 className="font-bold text-green-800 mb-2 flex items-center gap-2">
+                                                            <span>🏆</span>
+                                                            <span>Warum die günstigste Rate?</span>
+                                                        </h4>
+                                                        <div className="bg-white rounded-lg p-3 mb-3 shadow-sm">
+                                                            <p className="text-sm font-semibold text-gray-800">
+                                                                Sie sparen bis zu {monatlicheErsparnis.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € / Monat
+                                                            </p>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <p className="text-xs font-semibold text-green-800 mb-1">Mögliche Gründe:</p>
+                                                            {gruende.slice(0, 3).map((grund, idx) => (
+                                                                <div key={idx} className="flex items-start gap-2 text-sm text-gray-700">
+                                                                    <span className="text-green-600 font-bold">✓</span>
+                                                                    <span>{grund}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()
+                                        )}
+
+                                        {/* (Input-Felder aus Datei 1) */}
+                                        <div className="p-4 space-y-3">
+                                            {/* (Link zum Angebot) */}
+                                            <div className="space-y-2 pb-3 border-b border-gray-200">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-600 mb-1">Link zum Angebot (optional)</label>
+                                                    <div className="flex gap-2">
+                                                        <input type="url" value={angebot.link || ''} onChange={(e) => updateAngebot(angebot.id, 'link', e.target.value)} placeholder="https://example.com/angebot" className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                                                        {angebot.link && (
+                                                            <a href={angebot.link} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center" title="Link testen">
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {/* (Fahrzeugtyp) */}
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-600 mb-1">Fahrzeugtyp / Antrieb</label>
+                                                <select value={angebot.fahrzeugtyp} onChange={(e) => updateAngebot(angebot.id, 'fahrzeugtyp', e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none">
+                                                    <option value="verbrenner">Verbrenner (Benzin/Diesel)</option>
+                                                    <option value="elektro">Elektroauto (BEV)</option>
+                                                    <option value="hybrid">Plug-in-Hybrid (PHEV)</option>
+                                                </select>
+                                            </div>
+                                            {/* (Bruttolistenpreis) */}
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-600 mb-1">Bruttolistenpreis</label>
+                                                <input type="text" inputMode="decimal" value={getDecimalDisplayValue(angebot.id, 'bruttolistenpreis', angebot.bruttolistenpreis)} onFocus={handleDecimalFocus(angebot.id, 'bruttolistenpreis', angebot.bruttolistenpreis)} onChange={handleDecimalChange(angebot.id, 'bruttolistenpreis')} onBlur={handleDecimalBlur(angebot.id, 'bruttolistenpreis')} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none" />
+                                            </div>
+                                            {/* (Leasingrate) */}
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-600 mb-1">Monatliche Leasingrate (brutto)</label>
+                                                <input type="text" inputMode="decimal" value={getDecimalDisplayValue(angebot.id, 'leasingrate', angebot.leasingrate)} onFocus={handleDecimalFocus(angebot.id, 'leasingrate', angebot.leasingrate)} onChange={handleDecimalChange(angebot.id, 'leasingrate')} onBlur={handleDecimalBlur(angebot.id, 'leasingrate')} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none" />
+                                            </div>
+                                            {/* (Anzahlung) */}
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-600 mb-1">Sonderzahlung / Anzahlung (brutto)</label>
+                                                <input type="text" inputMode="decimal" value={getDecimalDisplayValue(angebot.id, 'anzahlung', angebot.anzahlung)} onFocus={handleDecimalFocus(angebot.id, 'anzahlung', angebot.anzahlung)} onChange={handleDecimalChange(angebot.id, 'anzahlung')} onBlur={handleDecimalBlur(angebot.id, 'anzahlung')} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none" />
+                                            </div>
+                                            {/* (Überführung) */}
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-600 mb-1">Überführung / Bereitstellung (brutto)</label>
+                                                <input type="text" inputMode="decimal" value={getDecimalDisplayValue(angebot.id, 'ueberfuehrung', angebot.ueberfuehrung)} onFocus={handleDecimalFocus(angebot.id, 'ueberfuehrung', angebot.ueberfuehrung)} onChange={handleDecimalChange(angebot.id, 'ueberfuehrung')} onBlur={handleDecimalBlur(angebot.id, 'ueberfuehrung')} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none" />
+                                            </div>
+                                            {/* (Laufzeit) */}
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-600 mb-1">Laufzeit (Monate)</label>
+                                                <input type="text" value={formatNumber(angebot.laufzeit)} onChange={(e) => updateAngebot(angebot.id, 'laufzeit', parseNumber(e.target.value))} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none" />
+                                            </div>
+                                            {/* (KM pro Jahr) */}
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-600 mb-1">Kilometer pro Jahr</label>
+                                                <input type="text" value={formatNumber(angebot.kmProJahr)} onChange={(e) => updateAngebot(angebot.id, 'kmProJahr', parseNumber(e.target.value))} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none" />
+                                            </div>
+                                            {/* (Wartung) */}
+                                            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                                <label className="flex items-center cursor-pointer">
+                                                    <input type="checkbox" checked={angebot.wartungInkludiert} onChange={(e) => updateAngebot(angebot.id, 'wartungInkludiert', e.target.checked)} className="w-4 h-4 text-gray-600 rounded focus:ring-2 focus:ring-gray-500" />
+                                                    <span className="ml-2 text-xs font-medium text-gray-700">Wartung & Verschleiß inkludiert</span>
+                                                </label>
+                                                {!angebot.wartungInkludiert && (
+                                                    <p className="text-xs text-gray-500 mt-1 ml-6">
+                                                        + {angebot.fahrzeugtyp === 'elektro' ? '0,03' : angebot.fahrzeugtyp === 'hybrid' ? '0,04' : '0,05'} €/km werden hinzugerechnet
+                                                    </p>
+                                                )}
+                                            </div>
+                                            {/* (Hubraum / CO2) */}
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-600 mb-1">Hubraum (ccm)</label>
+                                                    <input type="text" value={formatNumber(angebot.hubraum)} onChange={(e) => updateAngebot(angebot.id, 'hubraum', parseNumber(e.target.value))} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none" disabled={angebot.fahrzeugtyp === 'elektro'} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-600 mb-1">CO₂ (g/km)</label>
+                                                    <input type="text" value={formatNumber(angebot.co2)} onChange={(e) => updateAngebot(angebot.id, 'co2', parseNumber(e.target.value))} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none" disabled={angebot.fahrzeugtyp === 'elektro'} />
+                                                </div>
+                                            </div>
+                                            {/* (Mehr/Minder-KM) */}
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-600 mb-1">Mehr-km €/km</label>
+                                                    <input type="text" inputMode="decimal" value={getDecimalDisplayValue(angebot.id, 'mehrKmKosten', angebot.mehrKmKosten)} onFocus={handleDecimalFocus(angebot.id, 'mehrKmKosten', angebot.mehrKmKosten)} onChange={handleDecimalChange(angebot.id, 'mehrKmKosten')} onBlur={handleDecimalBlur(angebot.id, 'mehrKmKosten')} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-600 mb-1">Minder-km €/km</label>
+                                                    <input type="text" inputMode="decimal" value={getDecimalDisplayValue(angebot.id, 'minderKmErstattung', angebot.minderKmErstattung)} onFocus={handleDecimalFocus(angebot.id, 'minderKmErstattung', angebot.minderKmErstattung)} onChange={handleDecimalChange(angebot.id, 'minderKmErstattung')} onBlur={handleDecimalBlur(angebot.id, 'minderKmErstattung')} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none" />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* +++ ANGEPASSTE KOSTENÜBERSICHT +++ */}
+                                        <div className="bg-gray-50 p-4 border-t">
+                                            <h4 className="font-semibold text-gray-800 mb-3">
+                                                Kostenübersicht {kostenProJahr ? '(pro Jahr)' : '(gesamte Laufzeit)'}
+                                            </h4>
+                                            
+                                            <div className="space-y-2 text-sm">
+                                                {(() => {
+                                                    const jahre = angebot.laufzeit / 12;
+                                                    const faktor = kostenProJahr ? (1 / jahre) : 1;
+                                                    
+                                                    return (
+                                                        <>
+                                                            <div className="flex justify-between">
+                                                                <span className="text-gray-600">Brutto-Leasingkosten:</span>
+                                                                <span className="font-semibold">{(kosten.bruttoGesamt * faktor).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                                                            </div>
+                                                            
+                                                            <div className="flex justify-between">
+                                                                <span className="text-gray-600">+ KFZ-Steuer:</span>
+                                                                <span className="font-semibold">{(kosten.kfzSteuerGesamt * faktor).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                                                            </div>
+                                                            {kosten.kfzSteuerJahr > 0 && (
+                                                                <div className="flex justify-between text-xs text-gray-500">
+                                                                    <span className="italic">({kosten.kfzSteuerJahr.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € / Jahr)</span>
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {!angebot.wartungInkludiert && kosten.wartungsKostenGesamt > 0 && (
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-600">+ Wartung & Verschleiß:</span>
+                                                                    <span className="font-semibold">{(kosten.wartungsKostenGesamt * faktor).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {/* --- NUR GEWERBLICH --- */}
+                                                            {leasingTyp === 'gewerblich' && (
+                                                                <>
+                                                                    <div className="flex justify-between text-green-600">
+                                                                        <span>- Vorsteuerabzug (19%):</span>
+                                                                        <span className="font-semibold">-{(kosten.vorsteuerGesamt * faktor).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                                                                    </div>
+                                                                    
+                                                                    <div className="flex justify-between text-green-600">
+                                                                        <span>- Steuerersparnis ({steuersatz}%):</span>
+                                                                        <span className="font-semibold">-{(kosten.steuerersparnisRaten * faktor).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            {/* --- ENDE GEWERBLICH --- */}
+
+                                                            
+                                                            {/* --- NUR GEWERBLICH & PRIVATNUTZUNG --- */}
+                                                            {leasingTyp === 'gewerblich' && privateNutzung && kosten.geldwerterVorteilGesamt > 0 && (
+                                                                <>
+                                                                    <div className="flex justify-between text-orange-600 border-t pt-2">
+                                                                        <span>Geldw. Vorteil ({kosten.hinweisText}):</span>
+                                                                        <span className="font-semibold whitespace-nowrap">{(kosten.geldwerterVorteilGesamt * faktor).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                                                                    </div>
+                                                                    <div className="flex justify-between text-red-600">
+                                                                        <span>+ Zusätzliche Steuerlast:</span>
+                                                                        <span className="font-semibold whitespace-nowrap">+{(kosten.zusaetzlicheSteuerLast * faktor).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            {/* --- ENDE GEWERBLICH & PRIVATNUTZUNG --- */}
+                                                            
+                                                            <div className="border-t pt-2 mt-2">
+                                                                <div className="flex justify-between text-lg font-bold text-gray-800">
+                                                                    <span>{kostenText}:</span>
+                                                                    <span>{(kosten.effektiveKosten * faktor).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="flex justify-between text-gray-600">
+                                                                <span>Pro Monat:</span>
+                                                                <span className="font-semibold">{kosten.effektivMonatlich.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                                                            </div>
+                                                            
+                                                            <div className="flex justify-between text-gray-600">
+                                                                <span>Pro Kilometer:</span>
+                                                                <span className="font-semibold">{kosten.kostenProKm.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                                                            </div>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Optimierungs-Analyse (funktioniert jetzt für beide Modi) */}
+                                        <div className="bg-gray-50 p-4 border-t-2 border-gray-200">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h4 className="font-semibold text-gray-800">Optimierungs-Score</h4>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-16 h-16 relative">
+                                                        <svg className="transform -rotate-90 w-16 h-16">
+                                                            <circle cx="32" cy="32" r="28" stroke="#e5e7eb" strokeWidth="6" fill="none" />
+                                                            <circle 
+                                                                cx="32" cy="32" r="28" 
+                                                                stroke={analyse.score >= 80 ? '#10b981' : analyse.score >= 60 ? '#f59e0b' : '#ef4444'}
+                                                                strokeWidth="6" fill="none"
+                                                                strokeDasharray={`${analyse.score * 1.76} 176`}
+                                                                strokeLinecap="round"
+                                                            />
+                                                        </svg>
+                                                        <div className="absolute inset-0 flex items-center justify-center">
+                                                            <span className="text-lg font-bold">{Math.round(analyse.score)}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p className="text-xs font-medium text-gray-600 mb-3">{analyse.gesamtbewertung}</p>
+
+                                            {analyse.optimaltipps.length > 0 && (
+                                                <div className="mb-3">
+                                                    <div className="space-y-1">
+                                                        {analyse.optimaltipps.map((tipp, idx) => (
+                                                            <div key={idx} className="text-xs text-green-700 bg-green-50 px-2 py-1 rounded">
+                                                                {tipp}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {analyse.empfehlungen.length > 0 && (
+                                                <div className="mb-3">
+                                                    <h5 className="text-xs font-semibold text-blue-800 mb-2">💡 Spartipps:</h5>
+                                                    <div className="space-y-2">
+                                                        {analyse.empfehlungen.map((emp, idx) => (
+                                                            <div key={idx} className="bg-blue-50 border-l-2 border-blue-400 p-2 rounded">
+                                                                <p className="text-xs font-semibold text-blue-900">{emp.titel}</p>
+                                                                <p className="text-xs text-blue-700 mt-1">{emp.text}</p>
+                                                                <p className="text-xs text-blue-600 mt-1 font-medium">→ {emp.spartipp}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {analyse.warnungen.length > 0 && (
+                                                <div>
+                                                    <h5 className="text-xs font-semibold text-orange-800 mb-2">⚠️ Zu beachten:</h5>
+                                                    <div className="space-y-2">
+                                                        {analyse.warnungen.map((warn, idx) => (
+                                                            <div key={idx} className="bg-orange-50 border-l-2 border-orange-400 p-2 rounded">
+                                                                <p className="text-xs font-semibold text-orange-900">{warn.titel}</p>
+                                                                <p className="text-xs text-orange-700 mt-1">{warn.text}</p>
+                                                                <p className="text-xs text-orange-600 mt-1 font-medium">→ {warn.spartipp}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Detaillierte Vergleichstabelle (Original aus Datei 1, mit dynamischen Texten) */}
+                        {angebote.length > 1 && (
+                            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                                <button 
+                                        onClick={() => setTabelleOffen(!tabelleOffen)}
+                                        className="w-full flex items-center justify-between text-left"
+                                    >
+                                        <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                                            <span>📊</span>
+                                            <span>Detaillierter Vergleich aller Kennzahlen</span>
+                                        </h3>
+                                        <span className="text-2xl text-gray-500">
+                                            {tabelleOffen ? '−' : '+'}
+                                        </span>
+                                    </button>
+                                    
+                                    {tabelleOffen && (
+                                        <div className="mt-4 overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="border-b-2 border-gray-300">
+                                                        <th className="text-left py-3 px-2 font-semibold text-gray-700">Kennzahl</th>
+                                                        {angebote.map(angebot => {
+                                                            const isBest = bestAngebot?.id === angebot.id;
+                                                            return (
+                                                                <th 
+                                                                    key={angebot.id} 
+                                                                    className={`text-right py-3 px-2 font-semibold ${
+                                                                        isBest ? 'bg-green-50 text-green-800' : 'text-gray-700'
+                                                                    }`}
+                                                                >
+                                                                    {angebot.link ? (
+                                                                        <a href={angebot.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" title={angebot.name || angebot.link}>
+                                                                            {angebot.name || 'Angebot'}
+                                                                        </a>
+                                                                    ) : (
+                                                                        angebot.name || 'Angebot'
+                                                                    )}
+                                                                    {isBest && <div className="text-xs font-normal mt-1">🏆 Günstigste Rate</div>}
+                                                                </th>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {/* Effektive Kosten pro Monat */}
+                                                    <tr className="border-b border-gray-200 bg-blue-50">
+                                                        <td className="py-3 px-2 font-semibold text-gray-800">
+                                                            💰 {kostenText} / Monat
+                                                        </td>
+                                                        {angebote.map(angebot => {
+                                                            const kosten = berechneKosten(angebot);
+                                                            const istGuenstigste = angebot.id === bestAngebot.id;
+                                                            
+                                                            return (
+                                                                <td 
+                                                                    key={angebot.id} 
+                                                                    className={`text-right py-3 px-2 font-bold ${
+                                                                        istGuenstigste ? 'text-green-700 bg-green-100' : 'text-gray-900'
+                                                                    }`}
+                                                                >
+                                                                    {kosten.effektivMonatlich.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                                                                    {istGuenstigste && <span className="ml-1">✓</span>}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                    
+                                                    {/* Monatliche Rate */}
+                                                    <tr className="border-b border-gray-200">
+                                                        <td className="py-3 px-2 text-gray-700">Monatliche Rate (brutto)</td>
+                                                        {angebote.map(angebot => {
+                                                            const minRate = Math.min(...angebote.map(a => a.leasingrate));
+                                                            const istGuenstigste = angebot.leasingrate === minRate;
+                                                            return (
+                                                                <td key={angebot.id} className={`text-right py-3 px-2 ${istGuenstigste ? 'text-green-700 font-semibold' : 'text-gray-900'}`}>
+                                                                    {angebot.leasingrate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                                                                    {istGuenstigste && <span className="ml-1">✓</span>}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                    
+                                                    {/* Kosten pro km */}
+                                                    <tr className="border-b border-gray-200">
+                                                        <td className="py-3 px-2 text-gray-700">Kosten pro Kilometer</td>
+                                                        {angebote.map(angebot => {
+                                                            const kosten = berechneKosten(angebot);
+                                                            const minKostenProKm = Math.min(...angebote.map(a => berechneKosten(a).kostenProKm));
+                                                            const istGuenstigste = kosten.kostenProKm === minKostenProKm;
+                                                            return (
+                                                                <td key={angebot.id} className={`text-right py-3 px-2 ${istGuenstigste ? 'text-green-700 font-semibold' : 'text-gray-900'}`}>
+                                                                    {kosten.kostenProKm.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                                                                    {istGuenstigste && <span className="ml-1">✓</span>}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                    
+                                                     {/* Effektive Kosten Gesamt */}
+                                                    <tr className="border-b border-gray-200 bg-gray-50">
+                                                        <td className="py-3 px-2 text-gray-700">{kostenText} gesamt</td>
+                                                        {angebote.map(angebot => {
+                                                            const kosten = berechneKosten(angebot);
+                                                            return (
+                                                                <td key={angebot.id} className="text-right py-3 px-2 text-gray-900">
+                                                                    {kosten.effektiveKosten.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+
+                                                    {/* (Andere Kennzahlen aus Datei 1...) */}
+                                                    <tr className="border-b border-gray-200">
+                                                        <td className="py-3 px-2 text-gray-700">Fahrzeugtyp</td>
+                                                        {angebote.map(angebot => (
+                                                            <td key={angebot.id} className="text-right py-3 px-2 text-gray-900">
+                                                                {angebot.fahrzeugtyp === 'elektro' ? '⚡ Elektro' : angebot.fahrzeugtyp === 'hybrid' ? '🔋 Hybrid' : '⛽ Verbrenner'}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                    <tr className="border-b border-gray-200 bg-gray-50">
+                                                        <td className="py-3 px-2 text-gray-700">Anzahlung</td>
+                                                        {angebote.map(angebot => {
+                                                            const minAnzahlung = Math.min(...angebote.map(a => a.anzahlung));
+                                                            const istBeste = angebot.anzahlung === minAnzahlung;
+                                                            return (
+                                                                <td key={angebot.id} className={`text-right py-3 px-2 ${istBeste ? 'text-green-700 font-semibold' : 'text-gray-900'}`}>
+                                                                    {angebot.anzahlung.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €
+                                                                    {istBeste && <span className="ml-1">✓</span>}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                    <tr className="border-b border-gray-200">
+                                                        <td className="py-3 px-2 text-gray-700">Wartung & Verschleiß</td>
+                                                        {angebote.map(angebot => (
+                                                            <td key={angebot.id} className={`text-right py-3 px-2 ${angebot.wartungInkludiert ? 'text-green-700 font-semibold' : 'text-orange-600'}`}>
+                                                                {angebot.wartungInkludiert ? '✓ Inkludiert' : '✗ Nicht inkludiert'}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                    <tr className="border-b border-gray-200 bg-gray-50">
+                                                        <td className="py-3 px-2 text-gray-700">KFZ-Steuer (pro Jahr)</td>
+                                                        {angebote.map(angebot => {
+                                                            const kosten = berechneKosten(angebot);
+                                                            const minSteuer = Math.min(...angebote.map(a => berechneKosten(a).kfzSteuerJahr));
+                                                            const istBeste = kosten.kfzSteuerJahr === minSteuer;
+                                                            return (
+                                                                <td key={angebot.id} className={`text-right py-3 px-2 ${istBeste ? 'text-green-700 font-semibold' : 'text-gray-900'}`}>
+                                                                    {kosten.kfzSteuerJahr.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €
+                                                                    {istBeste && <span className="ml-1">✓</span>}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                    <tr className="border-b border-gray-200">
+                                                        <td className="py-3 px-2 text-gray-700">Optimierungs-Score</td>
+                                                        {angebote.map(angebot => {
+                                                            const analyse = analysiereAngebot(angebot);
+                                                            const maxScore = Math.max(...angebote.map(a => analysiereAngebot(a).score));
+                                                            const istBeste = analyse.score === maxScore;
+                                                            return (
+                                                                <td key={angebot.id} className={`text-right py-3 px-2 ${istBeste ? 'text-green-700 font-semibold' : 'text-gray-900'}`}>
+                                                                    {Math.round(analyse.score)} / 100
+                                                                    {istBeste && <span className="ml-1">✓</span>}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                        <div className="flex justify-center mb-6">
+                            <button
+                                onClick={addAngebot}
+                                className="flex items-center gap-2 bg-white text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-100 transition-colors shadow-lg border border-gray-300"
+                            >
+                                <div className="w-5 h-5">
+                                    <Plus />
+                                </div>
+                                Weiteres Angebot hinzufügen
+                            </button>
+                        </div>
+
+                        {/* +++ KONDITIONALE TIPPS-BOX +++ */}
+                        {leasingTyp === 'gewerblich' && (
+                            <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg shadow-lg p-6 mb-6 border-2 border-green-200">
+                                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                    <span className="text-2xl">🎯</span>
+                                    <span>So leasen Sie kostengünstig (Gewerbe)</span>
+                                </h3>
+                                {/* (Inhalt aus Datei 1...) */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* (1. Fahrzeugwahl) */}
+                                    <div className="bg-white rounded-lg p-4 shadow">
+                                        <h4 className="font-bold text-green-700 mb-2">1. Fahrzeugwahl</h4>
+                                        <ul className="text-sm space-y-2 text-gray-700">
+                                            <li className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span><strong>E-Auto bis 100.000€:</strong> Nur 0,25% Versteuerung</span></li>
+                                            <li className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span><strong>Hybrid:</strong> 0,5% (wenn Kriterien erfüllt)</span></li>
+                                            <li className="flex items-start gap-2"><span className="text-orange-600 font-bold">!</span><span><strong>Verbrenner:</strong> Volle 1% Versteuerung</span></li>
+                                        </ul>
+                                    </div>
+                                    {/* (2. Anzahlung) */}
+                                    <div className="bg-white rounded-lg p-4 shadow">
+                                        <h4 className="font-bold text-green-700 mb-2">2. Anzahlung</h4>
+                                        <ul className="text-sm space-y-2 text-gray-700">
+                                            <li className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span><strong>0€ Anzahlung:</strong> Maximale Liquidität</span></li>
+                                            <li className="flex items-start gap-2"><span className="text-red-600 font-bold">✗</span><span><strong>Hohe Anzahlung:</strong> Kapital blockiert</span></li>
+                                        </ul>
+                                    </div>
+                                    {/* (3. Laufzeit) */}
+                                    <div className="bg-white rounded-lg p-4 shadow">
+                                        <h4 className="font-bold text-green-700 mb-2">3. Laufzeit</h4>
+                                        <ul className="text-sm space-y-2 text-gray-700">
+                                            <li className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span><strong>36-48 Monate:</strong> Optimales Verhältnis</span></li>
+                                            <li className="flex items-start gap-2"><span className="text-orange-600 font-bold">!</span><span><strong>24 Monate:</strong> Hohe monatliche Belastung</span></li>
+                                        </ul>
+                                    </div>
+                                    {/* (4. Kilometer) */}
+                                    <div className="bg-white rounded-lg p-4 shadow">
+                                        <h4 className="font-bold text-green-700 mb-2">4. Kilometer</h4>
+                                        <ul className="text-sm space-y-2 text-gray-700">
+                                            <li className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span><strong>Realistisch kalkulieren:</strong> Zu niedrig = teure Mehrkilometer</span></li>
+                                            <li className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span><strong>Puffer einplanen:</strong> Lieber 10-15% mehr</span></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div className="mt-4 bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+                                    <p className="text-sm font-semibold text-yellow-900">💰 Größter Hebel: Fahrzeugtyp + Privatnutzung</p>
+                                    <p className="text-sm text-yellow-800 mt-1">Ein E-Auto bis 100.000€ mit privater Nutzung spart gegenüber einem Verbrenner bis zu 75% Steuerlast beim geldwerten Vorteil!</p>
+                                </div>
+                            </div>
+                        )}
+                        
+                        {/* +++ KONDITIONALE HINWEIS-BOX +++ */}
+                        <div className="bg-white rounded-lg shadow-lg p-6">
+                            {leasingTyp === 'gewerblich' ? (
+                                // --- HINWEISE GEWERBE (aus Datei 1) ---
+                                <>
+                                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                        <div className="w-5 h-5 text-gray-700"><Info /></div>
+                                        Wichtige Hinweise zum Gewerbeleasing
+                                    </h3>
+                                    <div className="space-y-3 text-sm text-gray-600">
+                                        <div><strong>Vorsteuerabzug:</strong> Als umsatzsteuerpflichtiges Unternehmen können Sie die in den Leasingraten enthaltene Vorsteuer (19%) vom Finanzamt zurückfordern.</div>
+                                        <div><strong>Betriebsausgaben:</strong> Die Netto-Leasingraten und die KFZ-Steuer können vollständig als Betriebsausgaben abgesetzt werden, was Ihre Steuerlast reduziert.</div>
+                                        <div className="bg-green-50 border-l-4 border-green-400 p-3">
+                                            <strong>Wartung & Verschleiß:</strong>
+                                            <ul className="list-disc ml-6 mt-2 space-y-1">
+                                                <li><strong>Inkludiert:</strong> Planbare Kosten, keine Überraschungen</li>
+                                                <li><strong>Nicht inkludiert:</strong> Durchschnittlich 3-5 Cent/km zusätzliche Kosten (Elektro 3, Hybrid 4, Verbrenner 5 Cent/km)</li>
+                                            </ul>
+                                        </div>
+                                        <div className="bg-gray-100 border-l-4 border-gray-400 p-3">
+                                            <strong>Geldwerter Vorteil bei privater Nutzung (Stand 2025):</strong>
+                                            <ul className="list-disc ml-6 mt-2 space-y-1">
+                                                <li><strong>Elektroautos (BEV):</strong> 0,25% (bis 100k€) / 0,5% (über 100k€)</li>
+                                                <li><strong>Plug-in-Hybride (PHEV):</strong> 0,5% (wenn Kriterien erfüllt)</li>
+                                                <li><strong>Verbrenner:</strong> 1% des Bruttolistenpreises monatlich</li>
+                                            </ul>
+                                        </div>
+                                        <div><strong>Alternative:</strong> Bei geringer privater Nutzung kann ein <strong>Fahrtenbuch</strong> günstiger sein als die pauschale Methode.</div>
+                                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mt-4">
+                                            <strong>⚠️ Hinweis:</strong> Diese Berechnung ist eine vereinfachte Darstellung. Für eine genaue steuerliche Beratung konsultieren Sie bitte Ihren Steuerberater.
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                // --- HINWEISE PRIVAT (aus Datei 2) ---
+                                <>
+                                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                        <div className="w-5 h-5 text-gray-700"><Info /></div>
+                                        Wichtige Hinweise zum Privatleasing
+                                    </h3>
+                                    <div className="space-y-3 text-sm text-gray-600">
+                                        <div>
+                                            <strong>Keine Steuervorteile:</strong> Als Privatperson können Sie weder Vorsteuer zurückfordern noch Leasingraten als Betriebsausgaben absetzen.
+                                        </div>
+                                        <div>
+                                            <strong>Was Sie zahlen:</strong> Die Bruttokosten setzen sich zusammen aus monatlichen Leasingraten (inkl. 19% MwSt.), Anzahlung, Überführung, KFZ-Steuer und ggf. Wartung & Verschleiß.
+                                        </div>
+                                        <div className="bg-blue-50 border-l-4 border-blue-400 p-3">
+                                            <strong>Wartung & Verschleiß:</strong>
+                                            <ul className="list-disc ml-6 mt-2 space-y-1">
+                                                <li><strong>Full-Service:</strong> Keine zusätzlichen Kosten, alles enthalten</li>
+                                                <li><strong>Nicht inkludiert:</strong> Rechnen Sie mit 3-5 Cent/km zusätzlich</li>
+                                            </ul>
+                                        </div>
+                                        <div className="bg-green-50 border-l-4 border-green-400 p-3">
+                                            <strong>Elektroautos:</strong> Sparen Sie bei E-Autos nicht nur Sprit, sondern auch KFZ-Steuer (0€ bis 2030) und Wartungskosten!
+                                        </div>
+                                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mt-4">
+                                            <strong>💡 Tipp:</strong> Vergleichen Sie mehrere Angebote! Die Kosten pro Kilometer (€/km) helfen Ihnen, das wirtschaftlichste Angebot zu finden.
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<GewerbeLeasingRechner />);
+    </script>
+</body>
+</html>
