@@ -123,11 +123,20 @@
                 return isNaN(num) ? 0 : num;
             };
 
+            const CENT_FIELDS = new Set(['mehrKmKosten', 'minderKmErstattung']);
+            const isCentField = (field) => CENT_FIELDS.has(field);
+
             const formatDecimal = (num) => {
                 if (num === null || num === undefined || isNaN(num)) {
                     return '';
                 }
                 return num.toLocaleString('de-DE', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+            };
+            const formatCent = (num) => {
+                if (num === null || num === undefined || isNaN(num)) {
+                    return '';
+                }
+                return Math.round(num).toLocaleString('de-DE', { maximumFractionDigits: 0, minimumFractionDigits: 0 });
             };
 
             const parseDecimal = (str) => {
@@ -191,16 +200,32 @@
 
             // +++ INPUT HANDLER (aus Datei 1) +++
             const decimalKey = (id, field) => `${id}-${field}`;
+            const toDisplayNumber = (field, numericValue) => {
+                if (numericValue === null || numericValue === undefined || isNaN(numericValue)) {
+                    return null;
+                }
+                return isCentField(field) ? numericValue * 100 : numericValue;
+            };
+            const convertInputToValue = (field, parsedNumber) => {
+                if (parsedNumber === null || parsedNumber === undefined || isNaN(parsedNumber)) {
+                    return 0;
+                }
+                return isCentField(field) ? parsedNumber / 100 : parsedNumber;
+            };
             const handleDecimalFocus = (id, field, currentValue) => () => {
                 const key = decimalKey(id, field);
                 setInputValues(prev => {
                     if (Object.prototype.hasOwnProperty.call(prev, key)) {
                         return prev;
                     }
-                    if (currentValue === null || currentValue === undefined || isNaN(currentValue)) {
+                    const displayNumber = toDisplayNumber(field, currentValue);
+                    if (displayNumber === null) {
                         return { ...prev, [key]: '' };
                     }
-                    const textValue = currentValue.toString().replace('.', ',');
+                    const rawString = isCentField(field)
+                        ? Math.round(displayNumber).toString()
+                        : displayNumber.toString();
+                    const textValue = rawString.replace('.', ',');
                     return { ...prev, [key]: textValue };
                 });
             };
@@ -211,7 +236,9 @@
                 }
                 const key = decimalKey(id, field);
                 setInputValues(prev => ({ ...prev, [key]: rawValue }));
-                updateAngebot(id, field, parseDecimal(rawValue));
+                const parsed = parseDecimal(rawValue);
+                const converted = convertInputToValue(field, parsed);
+                updateAngebot(id, field, converted);
             };
             const handleDecimalBlur = (id, field) => () => {
                 const key = decimalKey(id, field);
@@ -226,7 +253,13 @@
                 if (Object.prototype.hasOwnProperty.call(inputValues, key)) {
                     return inputValues[key];
                 }
-                return formatDecimal(numericValue);
+                const displayNumber = toDisplayNumber(field, numericValue);
+                if (displayNumber === null) {
+                    return '';
+                }
+                return isCentField(field)
+                    ? formatCent(displayNumber)
+                    : formatDecimal(displayNumber);
             };
 
             // +++ KFZ-STEUER BERECHNUNG (aus Datei 1) +++
@@ -528,7 +561,7 @@
                                     <div className="w-10 h-10 text-gray-700">
                                         <Calculator />
                                     </div>
-                                    <h1 className="text-3xl font-bold text-gray-800">Leasing-Rechner</h1>
+                                    <h1 className="text-3xl font-bold text-gray-800">Marcus' Leasing-Rechner</h1>
                                 </div>
                                 
                                 <div className="flex items-center gap-4 bg-gray-100 rounded-lg p-2">
@@ -998,11 +1031,11 @@
                                             {/* (Mehr/Minder-KM) */}
                                             <div className="grid grid-cols-2 gap-2">
                                                 <div>
-                                                    <label className="block text-xs font-medium text-gray-600 mb-1">Mehr-km €/km</label>
+                                                    <label className="block text-xs font-medium text-gray-600 mb-1">Mehr-km Cent/km</label>
                                                     <input type="text" inputMode="decimal" value={getDecimalDisplayValue(angebot.id, 'mehrKmKosten', angebot.mehrKmKosten)} onFocus={handleDecimalFocus(angebot.id, 'mehrKmKosten', angebot.mehrKmKosten)} onChange={handleDecimalChange(angebot.id, 'mehrKmKosten')} onBlur={handleDecimalBlur(angebot.id, 'mehrKmKosten')} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none" />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-medium text-gray-600 mb-1">Minder-km €/km</label>
+                                                    <label className="block text-xs font-medium text-gray-600 mb-1">Minder-km Cent/km</label>
                                                     <input type="text" inputMode="decimal" value={getDecimalDisplayValue(angebot.id, 'minderKmErstattung', angebot.minderKmErstattung)} onFocus={handleDecimalFocus(angebot.id, 'minderKmErstattung', angebot.minderKmErstattung)} onChange={handleDecimalChange(angebot.id, 'minderKmErstattung')} onBlur={handleDecimalBlur(angebot.id, 'minderKmErstattung')} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none" />
                                                 </div>
                                             </div>
