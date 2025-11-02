@@ -132,12 +132,6 @@
                 }
                 return num.toLocaleString('de-DE', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
             };
-            const formatCent = (num) => {
-                if (num === null || num === undefined || isNaN(num)) {
-                    return '';
-                }
-                return Math.round(num).toLocaleString('de-DE', { maximumFractionDigits: 0, minimumFractionDigits: 0 });
-            };
 
             const parseDecimal = (str) => {
                 if (!str) return 0;
@@ -223,7 +217,7 @@
                         return { ...prev, [key]: '' };
                     }
                     const rawString = isCentField(field)
-                        ? Math.round(displayNumber).toString()
+                        ? (Math.round((displayNumber + Number.EPSILON) * 100) / 100).toString()
                         : displayNumber.toString();
                     const textValue = rawString.replace('.', ',');
                     return { ...prev, [key]: textValue };
@@ -257,9 +251,7 @@
                 if (displayNumber === null) {
                     return '';
                 }
-                return isCentField(field)
-                    ? formatCent(displayNumber)
-                    : formatDecimal(displayNumber);
+                return formatDecimal(displayNumber);
             };
 
             // +++ KFZ-STEUER BERECHNUNG (aus Datei 1) +++
